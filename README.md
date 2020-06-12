@@ -5,7 +5,7 @@ Schedule
 
 June 12th: complete and test the prototype
 
-June 13th: implementate RunCheck function
+June 14th: implementate RunCheck function
 
 June 14th: implementate Score function
 
