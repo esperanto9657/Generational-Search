@@ -3,7 +3,7 @@ Implementation of Automated Whitebox Fuzz Testing using Triton
 
 Schedule
 
-June 11th: complete and test the prototype
+June 12th: complete and test the prototype
 
 June 13th: implementate Score function
 
