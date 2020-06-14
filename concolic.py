@@ -24,14 +24,10 @@ def symbolize_inputs(tid):
         print 'Symbolized argument %d: %s' % (rdi, s)
 
 def getCons():
-  PC = []
-  for branch in Triton.getPathConstraints():
-    bc = branch.getBranchConstraints()
-    if len(bc) >= 2:
-      PC.append([bc[0],bc[1]])
+  PC = Triton.getPathConstraints()
   print(PC)
-  with open("PC.txt", "w") as pc:
-    pickle.dump(PC, pc)
+  #with open("PC.pkl", "wb") as pc:
+  #  pickle.dump(PC, pc)
 
 def computePathConstraint():
   Triton.setArchitecture(triton.ARCH.X86_64)

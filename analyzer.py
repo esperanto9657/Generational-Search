@@ -4,10 +4,11 @@
 import triton
 import pintool
 import heapq
-import pickle
+#import os
+#import pickle
 import concolic
 #import threading
-import time
+#import time
 
 Triton = pintool.getTritonContext()
 PC = []
@@ -24,7 +25,6 @@ def search(inputSeed):
   while len(workList) > 0:
     item = heapq.heappop(workList)
     childs = expandExecution(item[1])
-    print(item[1])
     while len(childs) > 0:
       newItem = childs.pop()
       runCheck(newItem)
@@ -37,9 +37,15 @@ def expandExecution(item):
   #thread = threading.Thread(target = computePathConstraint)
   #thread.start()
   #thread.join()
+  #concolic.computePathConstraint()
+  #with open("PC.pkl", "rb") as pc:
+  #  PC = pickle.load(pc)
+  #pid = os.fork()
+  #if not pid:
+  #  computePathConstraint()
+  #else:
+  #  os.waitpid(pid, 0)
   concolic.computePathConstraint()
-  with open("PC.txt", "r") as pc:
-    PC = pickle.load(pc)
   print(PC)
   for j in range(item.bound, len(PC)):
     if not PC[j].isMultipleBranches():
@@ -85,7 +91,11 @@ def symbolize_inputs(tid):
     print 'Symbolized argument %d: %s' % (rdi, s)
 
 def getCons():
+  global PC
   PC = Triton.getPathConstraints()
+  print(PC)
+  #for bc in PC:
+  #  print(bc.getBranchConstraints())
 
 def computePathConstraint():
   Triton.setArchitecture(triton.ARCH.X86_64)
