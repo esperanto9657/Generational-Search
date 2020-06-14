@@ -4,36 +4,96 @@
 import triton
 import pintool
 import heapq
-#import os
-#import pickle
-import concolic
+import os
+import pickle
+#import concolic
 #import threading
 #import time
 
 Triton = pintool.getTritonContext()
-PC = []
 
 class Seed:
-  def __init__(self, model, bound):
+  def __init__(self, model = {}, bound = 0):
     self.model = model
     self.bound = bound
 
-def search(inputSeed):
-  workList = [[0, inputSeed]]
-  heapq.heapify(workList)
-  runCheck(inputSeed)
-  while len(workList) > 0:
-    item = heapq.heappop(workList)
-    childs = expandExecution(item[1])
-    while len(childs) > 0:
-      newItem = childs.pop()
-      runCheck(newItem)
-      heapq.heappush(workList, [score(newItem), newItem])
-  return "0"
+seed = None
+workList = []
+heapq.heapify(workList)
 
-def expandExecution(item):
+def search():
+  while len(workList) > 0:
+    global seed
+    seed = heapq.heappop(workList)[1]
+    expandExecution(seed)
+
+def runCheck(seed):
+  return
+
+def score(seed):
+  score = 0
+  return score
+
+def symbolize_inputs(tid):
+  rdi = pintool.getCurrentRegisterValue(Triton.registers.rdi) # argc
+  rsi = pintool.getCurrentRegisterValue(Triton.registers.rsi) # argv
+  global seed
+  seed = Seed()
+
+  # for each string in argv
+  while rdi > 1:
+    addr = pintool.getCurrentMemoryValue(rsi + ((rdi-1)*triton.CPUSIZE.QWORD), triton.CPUSIZE.QWORD)
+    # symbolize the current argument string (including the terminating NULL)
+    c = None
+    s = ''
+    i = 0
+    while c != 0:
+      c = pintool.getCurrentMemoryValue(addr)
+      s += chr(c)
+      seed.model[long(i)] = chr(c)
+      Triton.setConcreteMemoryValue(addr, c)
+      Triton.convertMemoryToSymbolicVariable(triton.MemoryAccess(addr, triton.CPUSIZE.BYTE)).setComment('argv[%d][%d]' % (rdi-1, len(s)-1))
+      addr += 1
+    rdi -= 1
+    print 'Symbolized argument %d: %s' % (rdi, s)
+
+def computePathConstraint():
   childs = []
   ast = Triton.getAstContext()
+  PC = Triton.getPathConstraints()
+  print(PC)
+  for j in range(seed.bound, len(PC)):
+    if not PC[j].isMultipleBranches():
+      continue
+    constraint_list = ast.equal(ast.bvtrue(), ast.bvtrue())
+    for i in range(j):
+      if PC[i].isMultipleBranches():
+        for branch_constraint in PC[i].getBranchConstraints():
+          if branch_constraint["isTaken"]:
+            constraint_list = ast.land([constraint_list, branch_constraint["constraint"]])
+    for branch_constraint in PC[j].getBranchConstraints():
+      if not branch_constraint["isTaken"]:
+        newPath = ast.land([constraint_list, branch_constraint["constraint"]])
+        model = Triton.getModel(newPath)
+        print(model)
+        print(seed.model)
+        if model:
+          for i in model.keys():
+            model[i] = chr(model[i].getValue())
+          print(model)
+          newModel = seed.model
+          newModel.update(model)
+          print(newModel)
+          newSeed = Seed(newModel, j)
+          childs.append(newSeed)
+  while len(childs) > 0:
+    newSeed = childs.pop()
+    runCheck(newSeed)
+    heapq.heappush(workList, [score(newSeed), newSeed])
+  with open("/media/sf_SharedFolder/awft/worklist.pkl", "wb") as data:
+    pickle.dump(workList, data)
+
+def expandExecution(seed = None):
   #thread = threading.Thread(target = computePathConstraint)
   #thread.start()
   #thread.join()
@@ -45,70 +105,25 @@ def expandExecution(item):
   #  computePathConstraint()
   #else:
   #  os.waitpid(pid, 0)
-  concolic.computePathConstraint()
-  print(PC)
-  for j in range(item.bound, len(PC)):
-    if not PC[j].isMultipleBranches():
-      continue
-    constraint_list = ast.equal(ast.bvtrue(), ast.bvtrue())
-    for i in range(j):
-      if PC[i].isMultipleBranches():
-        constraint_list = ast.land(constraint_list, PC[i].getTakenPredicate())
-    for branch_constraint in PC[j].getBranchConstraints():
-      if not branch_constraint["isTaken"]:
-        newPath = ast.land(constraint_list, branch_constraint["constraint"])
-        model = Triton.getModel(newPath)
-        if model:
-          newModel = item.model.update(zip(model.keys(),model.values()))
-          newItem = Seed(newModel, j)
-          childs.append(newItem)
-  return childs
-  
-def runCheck(item):
-  return
-
-def score(item):
-  score = 0
-  return score
-
-def symbolize_inputs(tid):
-  rdi = pintool.getCurrentRegisterValue(Triton.registers.rdi) # argc
-  rsi = pintool.getCurrentRegisterValue(Triton.registers.rsi) # argv
-
-  # for each string in argv
-  while rdi > 1:
-    addr = pintool.getCurrentMemoryValue(rsi + ((rdi-1)*triton.CPUSIZE.QWORD), triton.CPUSIZE.QWORD)
-    # symbolize the current argument string (including the terminating NULL)
-    c = None
-    s = ''
-    while c != 0:
-      c = pintool.getCurrentMemoryValue(addr)
-      s += chr(c)
-      Triton.setConcreteMemoryValue(addr, c)
-      Triton.convertMemoryToSymbolicVariable(triton.MemoryAccess(addr, triton.CPUSIZE.BYTE)).setComment('argv[%d][%d]' % (rdi-1, len(s)-1))
-      addr += 1
-    rdi -= 1
-    print 'Symbolized argument %d: %s' % (rdi, s)
-
-def getCons():
-  global PC
-  PC = Triton.getPathConstraints()
-  print(PC)
-  #for bc in PC:
-  #  print(bc.getBranchConstraints())
-
-def computePathConstraint():
+  #concolic.computePathConstraint()
   Triton.setArchitecture(triton.ARCH.X86_64)
   Triton.enableMode(triton.MODE.ALIGNED_MEMORY, True)
   pintool.startAnalysisFromSymbol("main")
-  pintool.insertCall(symbolize_inputs, pintool.INSERT_POINT.ROUTINE_ENTRY, "main")
-  pintool.insertCall(getCons, pintool.INSERT_POINT.FINI)
+  if seed is None:
+    pintool.insertCall(symbolize_inputs, pintool.INSERT_POINT.ROUTINE_ENTRY, "main")
+  else:
+    print(seed)
+  pintool.insertCall(computePathConstraint, pintool.INSERT_POINT.FINI)
   pintool.runProgram()
   return
 
 def main():
-  with open("log.txt", "w") as out:
-    out.write(search(Seed({1, "good"}, 0)))
+  if not os.path.exists("/media/sf_SharedFolder/awft/worklist.pkl"):
+    expandExecution()
+  else:
+    with open("/media/sf_SharedFolder/awft/worklist.pkl", "rb") as data:
+      workList = pickle.load(data)
+    search()
 
 if __name__ == "__main__":
   main()
