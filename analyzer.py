@@ -6,6 +6,7 @@ import pintool
 import heapq
 import os
 import pickle
+import copy
 #import concolic
 #import threading
 #import time
@@ -19,7 +20,6 @@ class Seed:
 
 seed = None
 workList = []
-heapq.heapify(workList)
 
 def search():
   while len(workList) > 0:
@@ -49,14 +49,24 @@ def symbolize_inputs(tid):
     i = 0
     while c != 0:
       c = pintool.getCurrentMemoryValue(addr)
+      print(c)
       s += chr(c)
       seed.model[long(i)] = chr(c)
+      i += 1
       Triton.setConcreteMemoryValue(addr, c)
       Triton.convertMemoryToSymbolicVariable(triton.MemoryAccess(addr, triton.CPUSIZE.BYTE)).setComment('argv[%d][%d]' % (rdi-1, len(s)-1))
       addr += 1
     rdi -= 1
     print 'Symbolized argument %d: %s' % (rdi, s)
-
+'''
+def set_inputs(tid):
+  global seed
+  
+  for v in seed.model.values():
+    Triton.setConcreteMemoryValue(addr, ord(v))
+    Triton.convertMemoryToSymbolicVariable(triton.MemoryAccess(addr, triton.CPUSIZE.BYTE))
+    addr += 1
+'''
 def computePathConstraint():
   childs = []
   ast = Triton.getAstContext()
@@ -75,13 +85,14 @@ def computePathConstraint():
       if not branch_constraint["isTaken"]:
         newPath = ast.land([constraint_list, branch_constraint["constraint"]])
         model = Triton.getModel(newPath)
-        print(model)
         print(seed.model)
         if model:
           for i in model.keys():
-            model[i] = chr(model[i].getValue())
-          print(model)
-          newModel = seed.model
+            if model[i].getValue() < 0x80:
+              model[i] = chr(model[i].getValue())
+            else:
+              del model[i]
+          newModel = copy.deepcopy(seed.model)
           newModel.update(model)
           print(newModel)
           newSeed = Seed(newModel, j)
@@ -89,7 +100,7 @@ def computePathConstraint():
   while len(childs) > 0:
     newSeed = childs.pop()
     runCheck(newSeed)
-    heapq.heappush(workList, [score(newSeed), newSeed])
+    heapq.heappush(workList, [-score(newSeed), newSeed])
   with open("/media/sf_SharedFolder/awft/worklist.pkl", "wb") as data:
     pickle.dump(workList, data)
 
@@ -112,6 +123,7 @@ def expandExecution(seed = None):
   if seed is None:
     pintool.insertCall(symbolize_inputs, pintool.INSERT_POINT.ROUTINE_ENTRY, "main")
   else:
+    #pintool.insertCall(set_inputs, pintool.INSERT_POINT.ROUTINE_ENTRY, "main")
     print(seed)
   pintool.insertCall(computePathConstraint, pintool.INSERT_POINT.FINI)
   pintool.runProgram()
@@ -122,7 +134,10 @@ def main():
     expandExecution()
   else:
     with open("/media/sf_SharedFolder/awft/worklist.pkl", "rb") as data:
+      global workList
       workList = pickle.load(data)
+    for i in workList:
+      print(i[1].model)
     search()
 
 if __name__ == "__main__":
