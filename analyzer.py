@@ -60,12 +60,20 @@ def symbolize_inputs(tid):
     print 'Symbolized argument %d: %s' % (rdi, s)
 '''
 def set_inputs(tid):
+  rdi = pintool.getCurrentRegisterValue(Triton.registers.rdi) # argc
+  rsi = pintool.getCurrentRegisterValue(Triton.registers.rsi) # argv
+  print(rdi)
+  print(rsi)
   global seed
   
-  for v in seed.model.values():
-    Triton.setConcreteMemoryValue(addr, ord(v))
-    Triton.convertMemoryToSymbolicVariable(triton.MemoryAccess(addr, triton.CPUSIZE.BYTE))
-    addr += 1
+  while rdi > 1:
+    addr = pintool.getCurrentMemoryValue(rsi + ((rdi-1)*triton.CPUSIZE.QWORD), triton.CPUSIZE.QWORD)
+    for v in seed.model.values():
+      Triton.setConcreteMemoryValue(addr, ord(v))
+      Triton.convertMemoryToSymbolicVariable(triton.MemoryAccess(addr, triton.CPUSIZE.BYTE))
+      addr += 1
+    rdi -= 1
+    print 'Symbolized argument %d: %s' % (rdi, s)
 '''
 def computePathConstraint():
   childs = []
@@ -95,7 +103,7 @@ def computePathConstraint():
           newModel = copy.deepcopy(seed.model)
           newModel.update(model)
           print(newModel)
-          newSeed = Seed(newModel, j)
+          newSeed = Seed(newModel, j + 1)
           childs.append(newSeed)
   while len(childs) > 0:
     newSeed = childs.pop()
