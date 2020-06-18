@@ -4,17 +4,17 @@ import heapq
 import pickle
 import copy
 import os
-import time
-#import threading
 
+SAMPLE_PATH = "/media/sf_SharedFolder/awft/example1.out "
 Triton = pintool.getTritonContext()
 workList = []
 seed = None
 blockList = set()
+controlFlow = False
 
 class Seed:
-  def __init__(self, model = {}, bound = 0):
-    self.model = model
+  def __init__(self, model = None, bound = 0):
+    self.model = model if model else {}
     self.bound = bound
 
 def symbolize_inputs(tid):
@@ -62,36 +62,30 @@ def expandExecution():
                 del model[i]
             newModel = copy.deepcopy(seed.model)
             newModel.update(model)
-            print(newModel)
             newSeed = Seed(newModel, j + 1)
             childs.append(newSeed)
-  while len(childs) > 0:
-    newSeed = childs.pop()
-    runCheck(newSeed)
-    heapq.heappush(workList, [-score(newSeed), newSeed])
-  with open("/media/sf_SharedFolder/awft/worklist.pkl", "wb") as data:
-    pickle.dump(workList, data)
   with open("/media/sf_SharedFolder/awft/blocklist.pkl", "wb") as data:
+    print(blockList)
     pickle.dump(blockList, data)
+  with open("/media/sf_SharedFolder/awft/childlist.pkl", "wb") as data:
+    pickle.dump(childs, data)
 
 def computeBlockCoverage(inst):
   global blockList
+  global controlFlow
+  if controlFlow:
+    blockList.add(hex(inst.getAddress()))
+    controlFlow = False
   if inst.isControlFlow():
-    blockList.add(inst.getAddress())
-
-def runCheck(seed):
-  return
-
-def score(seed):
-  os.system("~/triton/pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton/build/triton /media/sf_SharedFolder/awft/score.py /media/sf_SharedFolder/awft/example1.out " + ''.join(seed.model.values()[:-1]))
-  time.sleep(0.5)
-  with open("/media/sf_SharedFolder/awft/score.txt", "w") as data:
-    score = int(data.read(data))
-  return score
+    controlFlow = True
 
 def main():
   global workList
   global seed
+  global blockList
+  if os.path.exists("/media/sf_SharedFolder/awft/blocklist.pkl"):
+    with open("/media/sf_SharedFolder/awft/blocklist.pkl", "rb") as data:
+      blockList = pickle.load(data)
   with open("/media/sf_SharedFolder/awft/worklist.pkl", "rb") as data:
     workList = pickle.load(data)
   seed = heapq.heappop(workList)[1]
