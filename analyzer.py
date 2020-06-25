@@ -11,7 +11,7 @@ class Seed:
     self.bound = bound
 
 SAMPLE_PATH = "/media/sf_SharedFolder/awft/example1.out "
-workList = [[0, Seed({0L: chr(0x67), 1L: chr(0x6F), 2L: chr(0x6F), 3L: chr(0x64), 4L: chr(0)}, 0)]]
+workList = [[0, Seed({0: 'g', 1: 'o', 2: 'o', 3: 'd', 4: chr(0)}, 0)]]
 
 def search():
   global workList
