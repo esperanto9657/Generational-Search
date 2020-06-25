@@ -1,114 +1,41 @@
 #!/usr/bin/env python2
 ## -*- coding: utf-8 -*-
 
-import triton
-import pintool
 import heapq
-#import os
-#import pickle
-import concolic
-#import threading
-#import time
-
-Triton = pintool.getTritonContext()
-PC = []
+import pickle
+import subprocess
 
 class Seed:
-  def __init__(self, model, bound):
-    self.model = model
+  def __init__(self, model = None, bound = 0):
+    self.model = model if model else {}
     self.bound = bound
 
-def search(inputSeed):
-  workList = [[0, inputSeed]]
-  heapq.heapify(workList)
-  runCheck(inputSeed)
+SAMPLE_PATH = "/media/sf_SharedFolder/awft/example1.out "
+workList = [[0, Seed({0: 'g', 1: 'o', 2: 'o', 3: 'd', 4: chr(0)}, 0)]]
+
+def search():
+  global workList
+  with open("/media/sf_SharedFolder/awft/worklist.pkl", "wb") as data:
+    pickle.dump(workList, data)
   while len(workList) > 0:
-    item = heapq.heappop(workList)
-    childs = expandExecution(item[1])
+    seed = heapq.heappop(workList)[1]
+    subprocess.check_call("~/triton/pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton/build/triton /media/sf_SharedFolder/awft/concolic.py " + SAMPLE_PATH + ''.join(seed.model.values()[:-1]), shell = True)
+    with open("/media/sf_SharedFolder/awft/childlist.pkl", "rb") as data:
+      childs = pickle.load(data)
     while len(childs) > 0:
-      newItem = childs.pop()
-      runCheck(newItem)
-      heapq.heappush(workList, [score(newItem), newItem])
-  return "0"
+      newSeed = childs.pop()
+      heapq.heappush(workList, [-score(newSeed), newSeed])
+    for i in workList:
+      print(i[0], i[1].model)
+    with open("/media/sf_SharedFolder/awft/worklist.pkl", "wb") as data:
+      pickle.dump(workList, data)
 
-def expandExecution(item):
-  childs = []
-  ast = Triton.getAstContext()
-  #thread = threading.Thread(target = computePathConstraint)
-  #thread.start()
-  #thread.join()
-  #concolic.computePathConstraint()
-  #with open("PC.pkl", "rb") as pc:
-  #  PC = pickle.load(pc)
-  #pid = os.fork()
-  #if not pid:
-  #  computePathConstraint()
-  #else:
-  #  os.waitpid(pid, 0)
-  concolic.computePathConstraint()
-  print(PC)
-  for j in range(item.bound, len(PC)):
-    if not PC[j].isMultipleBranches():
-      continue
-    constraint_list = ast.equal(ast.bvtrue(), ast.bvtrue())
-    for i in range(j):
-      if PC[i].isMultipleBranches():
-        constraint_list = ast.land(constraint_list, PC[i].getTakenPredicate())
-    for branch_constraint in PC[j].getBranchConstraints():
-      if not branch_constraint["isTaken"]:
-        newPath = ast.land(constraint_list, branch_constraint["constraint"])
-        model = Triton.getModel(newPath)
-        if model:
-          newModel = item.model.update(zip(model.keys(),model.values()))
-          newItem = Seed(newModel, j)
-          childs.append(newItem)
-  return childs
-  
-def runCheck(item):
-  return
-
-def score(item):
-  score = 0
+def score(newSeed):
+  score = int(subprocess.check_output("~/triton/pin-2.14-71313-gcc.4.4.7-linux/source/tools/Triton/build/triton /media/sf_SharedFolder/awft/score.py " + SAMPLE_PATH + ''.join(newSeed.model.values()[:-1]), shell = True).strip())
   return score
 
-def symbolize_inputs(tid):
-  rdi = pintool.getCurrentRegisterValue(Triton.registers.rdi) # argc
-  rsi = pintool.getCurrentRegisterValue(Triton.registers.rsi) # argv
-
-  # for each string in argv
-  while rdi > 1:
-    addr = pintool.getCurrentMemoryValue(rsi + ((rdi-1)*triton.CPUSIZE.QWORD), triton.CPUSIZE.QWORD)
-    # symbolize the current argument string (including the terminating NULL)
-    c = None
-    s = ''
-    while c != 0:
-      c = pintool.getCurrentMemoryValue(addr)
-      s += chr(c)
-      Triton.setConcreteMemoryValue(addr, c)
-      Triton.convertMemoryToSymbolicVariable(triton.MemoryAccess(addr, triton.CPUSIZE.BYTE)).setComment('argv[%d][%d]' % (rdi-1, len(s)-1))
-      addr += 1
-    rdi -= 1
-    print 'Symbolized argument %d: %s' % (rdi, s)
-
-def getCons():
-  global PC
-  PC = Triton.getPathConstraints()
-  print(PC)
-  #for bc in PC:
-  #  print(bc.getBranchConstraints())
-
-def computePathConstraint():
-  Triton.setArchitecture(triton.ARCH.X86_64)
-  Triton.enableMode(triton.MODE.ALIGNED_MEMORY, True)
-  pintool.startAnalysisFromSymbol("main")
-  pintool.insertCall(symbolize_inputs, pintool.INSERT_POINT.ROUTINE_ENTRY, "main")
-  pintool.insertCall(getCons, pintool.INSERT_POINT.FINI)
-  pintool.runProgram()
-  return
-
 def main():
-  with open("log.txt", "w") as out:
-    out.write(search(Seed({1, "good"}, 0)))
+  search()
 
 if __name__ == "__main__":
   main()
