@@ -22,7 +22,7 @@ def outputScore():
 
 def main():
   global blockList
-  with open("/media/sf_SharedFolder/awft/blocklist.pkl", "rb") as data:
+  with open("/media/sf_SharedFolder/Generational-Search/blocklist.pkl", "rb") as data:
     blockList = pickle.load(data)
   Triton.setArchitecture(triton.ARCH.X86_64)
   Triton.enableMode(triton.MODE.ALIGNED_MEMORY, True)

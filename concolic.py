@@ -5,7 +5,8 @@ import pickle
 import copy
 import os
 
-SAMPLE_PATH = "/media/sf_SharedFolder/awft/example1.out "
+FILE_PATH = "/media/sf_SharedFolder/Generational-Search/"
+SAMPLE_PATH = "/media/sf_SharedFolder/Generational-Search/example1.out "
 Triton = pintool.getTritonContext()
 workList = []
 seed = None
@@ -64,10 +65,10 @@ def expandExecution():
             newModel.update(model)
             newSeed = Seed(newModel, j + 1)
             childs.append(newSeed)
-  with open("/media/sf_SharedFolder/awft/blocklist.pkl", "wb") as data:
+  with open(FILE_PATH + "blocklist.pkl", "wb") as data:
     print(blockList)
     pickle.dump(blockList, data)
-  with open("/media/sf_SharedFolder/awft/childlist.pkl", "wb") as data:
+  with open(FILE_PATH + "childlist.pkl", "wb") as data:
     pickle.dump(childs, data)
 
 def computeBlockCoverage(inst):
@@ -83,10 +84,10 @@ def main():
   global workList
   global seed
   global blockList
-  if os.path.exists("/media/sf_SharedFolder/awft/blocklist.pkl"):
-    with open("/media/sf_SharedFolder/awft/blocklist.pkl", "rb") as data:
+  if os.path.exists(FILE_PATH + "blocklist.pkl"):
+    with open(FILE_PATH + "blocklist.pkl", "rb") as data:
       blockList = pickle.load(data)
-  with open("/media/sf_SharedFolder/awft/worklist.pkl", "rb") as data:
+  with open(FILE_PATH + "worklist.pkl", "rb") as data:
     workList = pickle.load(data)
   seed = heapq.heappop(workList)[1]
   #thread = threading.Thread(target = computePathConstraint)
